@@ -338,7 +338,7 @@ export default function ReserveIdScreen() {
           <>
           <View
             style={{
-              paddingTop: s(270),
+              paddingTop: s(80),
               paddingHorizontal: s(40),
               alignItems: "flex-end",
             }}
@@ -372,7 +372,7 @@ export default function ReserveIdScreen() {
               <View style={{ width: s(16) }} />
               <Image
                 source={BELL_SRC}
-                style={{ width: s(58), height: s(58) }}
+                style={{ width: s(50), height: s(50) }}
                 contentFit="contain"
               />
             </TouchableOpacity>
@@ -380,7 +380,7 @@ export default function ReserveIdScreen() {
 
           <View
             style={{
-              paddingTop: s(543),
+              paddingTop: s(330),
               alignItems: "center",
             }}
           >
