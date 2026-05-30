@@ -36,19 +36,14 @@ const FONT_INTER_M = "Inter_500Medium";
 const FONT_INTER_SB = "Inter_600SemiBold";
 const sfPro = Platform.select({ ios: undefined, default: FONT_INTER_M });
 
-type Profile = {
-  surname: string;
-  name: string;
-  patronymic: string;
-  birthDate: string;
-};
+import type { UserProfile } from "@/src/utils/profile";
 
 type Props = {
   visible: boolean;
   s: (v: number) => number;
   scale: number;
   onClose: () => void;
-  profile: Profile;
+  profile: UserProfile;
   photoBase64?: string | null;
   tickerText: string;
 };
@@ -288,7 +283,7 @@ export default function DocumentDetailSheet({
                 <View style={{ height: s(40) }} />
 
                 <FieldLabel s={s} scale={scale}>РНОКПП:</FieldLabel>
-                <FieldValue s={s} scale={scale}>3420109758</FieldValue>
+                <FieldValue s={s} scale={scale}>{profile.rnokpp}</FieldValue>
               </View>
             </View>
           </Card>
@@ -296,45 +291,37 @@ export default function DocumentDetailSheet({
           {/* Card 2 */}
           <Card s={s} marginTop={s(40)}>
             <FieldLabel s={s} scale={scale}>ТЦК та СП:</FieldLabel>
-            <FieldValue s={s} scale={scale}>
-              Дніпровський районний у м.Києві територіальний центр комплектування
-              та соціальної підтримки
-            </FieldValue>
+            <FieldValue s={s} scale={scale}>{profile.tck}</FieldValue>
 
             <Divider s={s} />
 
-            <KeyValueRow s={s} scale={scale} k="Звання:" v="Солдат" />
-            <KeyValueRow s={s} scale={scale} k="ВОС:" v="999097" marginTop={s(28)} />
+            <KeyValueRow s={s} scale={scale} k="Звання:" v={profile.rank} />
+            <KeyValueRow s={s} scale={scale} k="ВОС:" v={profile.vos} marginTop={s(28)} />
 
             <View style={{ height: s(40) }} />
             <FieldLabel s={s} scale={scale}>Категорія обліку:</FieldLabel>
-            <FieldValue s={s} scale={scale}>Військовозобов&apos;язаний</FieldValue>
+            <FieldValue s={s} scale={scale}>{profile.category}</FieldValue>
 
             <View style={{ height: s(40) }} />
-            <FieldValue s={s} scale={scale}>
-              Потребує проходження базової загальновійськової підготовки,Солдат
-              резерву
-            </FieldValue>
+            <FieldValue s={s} scale={scale}>{profile.note}</FieldValue>
 
             <View style={{ height: s(40) }} />
             <FieldLabel s={s} scale={scale}>Номер в реєстрі Оберіг:</FieldLabel>
-            <FieldValue s={s} scale={scale}>02102023132063450009</FieldValue>
+            <FieldValue s={s} scale={scale}>{profile.registryNumber}</FieldValue>
           </Card>
 
           {/* Card 3: Контакти */}
           <Card s={s} marginTop={s(40)}>
             <FieldLabel s={s} scale={scale}>Телефон:</FieldLabel>
-            <FieldValue s={s} scale={scale}>+380 67 320 2328</FieldValue>
+            <FieldValue s={s} scale={scale}>{profile.phone}</FieldValue>
 
             <View style={{ height: s(40) }} />
             <FieldLabel s={s} scale={scale}>Email:</FieldLabel>
-            <FieldValue s={s} scale={scale}>konyok93@gmail.com</FieldValue>
+            <FieldValue s={s} scale={scale}>{profile.email}</FieldValue>
 
             <View style={{ height: s(40) }} />
             <FieldLabel s={s} scale={scale}>Адреса проживання:</FieldLabel>
-            <FieldValue s={s} scale={scale}>
-              Україна, м.Київ, м Київ, Метробудівська, б. 9/9, кв. 27
-            </FieldValue>
+            <FieldValue s={s} scale={scale}>{profile.address}</FieldValue>
           </Card>
 
           {/* Card 4 */}
@@ -371,7 +358,7 @@ export default function DocumentDetailSheet({
               s={s}
               scale={scale}
               k="Дата останнього уточнення даних:"
-              v="28.07.2025"
+              v={profile.dataUpdateDate}
               alignTop
             />
           </Card>

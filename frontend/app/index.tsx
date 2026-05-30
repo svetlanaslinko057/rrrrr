@@ -28,7 +28,14 @@ import Animated, {
 import QRCode from "react-native-qrcode-svg";
 import * as ImagePicker from "expo-image-picker";
 
-import { storage } from "@/src/utils/storage";
+import { useRouter, useFocusEffect } from "expo-router";
+
+import {
+  UserProfile,
+  DEFAULT_PROFILE,
+  loadProfile,
+  saveProfile,
+} from "@/src/utils/profile";
 import ServicesScreen from "@/src/components/ServicesScreen";
 import EditOnlineScreen from "@/src/components/EditOnlineScreen";
 import VacanciesScreen from "@/src/components/VacanciesScreen";
@@ -78,46 +85,6 @@ const MONTHS_UA = [
   "липня", "серпня", "вересня", "жовтня", "листопада", "грудня",
 ];
 
-const STORAGE_KEY = "rezerv_profile_v1";
-
-// ---- Типи ----
-type Profile = {
-  surname: string;
-  name: string;
-  patronymic: string;
-  birthDate: string;
-  deferralUntil: string;
-  customTicker: string;
-  photoBase64: string | null;
-  noPhoto?: boolean; // true → варіант без фото (інша верстка/шрифти)
-};
-
-const DEFAULT_PROFILE: Profile = {
-  surname: "ІВАНОВ",
-  name: "ІВАН",
-  patronymic: "Іванович",
-  birthDate: "11.11.1111",
-  deferralUntil: "08.01.2027",
-  customTicker: "",
-  photoBase64: null,
-};
-
-// Мок-варіанти, які надалі повертатиме бекенд.
-// Перемикання — long-press на табі "Резерв ID".
-const MOCK_VARIANTS: Profile[] = [
-  DEFAULT_PROFILE,
-  {
-    surname: "СЕНЮК",
-    name: "ДМИТРО",
-    patronymic: "ВОЛОДИМИРОВИЧ",
-    birthDate: "27.05.1993",
-    deferralUntil: "завершення мобілізації",
-    customTicker: "",
-    photoBase64: null,
-    noPhoto: true,
-  },
-];
-
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
 function buildAutoTicker(): string {
@@ -142,17 +109,17 @@ function formatDateInput(raw: string): string {
 }
 
 export default function ReserveIdScreen() {
+  const router = useRouter();
   const { width: winWidth } = useWindowDimensions();
   const W = Math.min(winWidth || MAX_PHONE_WIDTH, MAX_PHONE_WIDTH);
   const scale = W / DESIGN_WIDTH;
   const s = useCallback((v: number) => v * scale, [scale]);
 
-  const [profile, setProfile] = useState<Profile>(DEFAULT_PROFILE);
-  const [draft, setDraft] = useState<Profile>(DEFAULT_PROFILE);
+  const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
+  const [draft, setDraft] = useState<UserProfile>(DEFAULT_PROFILE);
   const [editMode, setEditMode] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [tickerStamp, setTickerStamp] = useState<string>(buildAutoTicker());
-  const [variantIdx, setVariantIdx] = useState(0);
   const [activeTab, setActiveTab] = useState<"reserve" | "services" | "vacancies" | "menu">("reserve");
   const [servicesSubScreen, setServicesSubScreen] = useState<null | "edit-online">(null);
   const [vacanciesSubScreen, setVacanciesSubScreen] = useState<null | "support">(null);
@@ -171,34 +138,37 @@ export default function ReserveIdScreen() {
     if (activeTab !== "reserve") setShowNotifications(false);
   }, [activeTab]);
 
-  const cycleVariant = useCallback(() => {
-    setVariantIdx((i) => {
-      const next = (i + 1) % MOCK_VARIANTS.length;
-      setProfile(MOCK_VARIANTS[next]);
-      setDraft(MOCK_VARIANTS[next]);
-      return next;
-    });
-  }, []);
-
+  // Завантажуємо профіль на старті
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const raw = await storage.getItem<string>(STORAGE_KEY, "");
-      if (mounted && raw) {
-        try {
-          const parsed = JSON.parse(raw) as Partial<Profile>;
-          const merged = { ...DEFAULT_PROFILE, ...parsed };
-          setProfile(merged);
-          setDraft(merged);
-        } catch {
-          /* ignore */
-        }
+      const p = await loadProfile();
+      if (mounted) {
+        setProfile(p);
+        setDraft(p);
       }
     })();
     return () => {
       mounted = false;
     };
   }, []);
+
+  // Перезавантажуємо профіль при поверненні на головний екран (наприклад, з /settings)
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        const p = await loadProfile();
+        if (active) {
+          setProfile(p);
+          setDraft(p);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   useEffect(() => {
     if (profile.customTicker) return;
@@ -211,8 +181,6 @@ export default function ReserveIdScreen() {
     ? `Оновлюємо документ   •   Оновимо за годину   •   `
     : `${tickerText}   •   `;
   const TICKER_REPEAT = 30;
-  const STRIP_BG_ACTIVE = isRefreshing ? "#F9D85D" : STRIP_BG;
-  const TICKER_COLOR = isRefreshing ? "#1A1A1A" : "#FFFFFF";
 
   const handleConfirmUpdate = useCallback(() => {
     setUpdateModalVisible(false);
@@ -294,18 +262,18 @@ export default function ReserveIdScreen() {
   }, [profile, showQR]);
 
   const saveEdit = useCallback(async () => {
-    const cleaned: Profile = {
+    const cleaned: UserProfile = {
+      ...draft,
       surname: (draft.surname || "").trim().toUpperCase() || DEFAULT_PROFILE.surname,
       name: (draft.name || "").trim().toUpperCase() || DEFAULT_PROFILE.name,
       patronymic: (draft.patronymic || "").trim() || DEFAULT_PROFILE.patronymic,
       birthDate: draft.birthDate || DEFAULT_PROFILE.birthDate,
       deferralUntil: draft.deferralUntil || DEFAULT_PROFILE.deferralUntil,
       customTicker: draft.customTicker || "",
-      photoBase64: draft.photoBase64,
     };
     setProfile(cleaned);
     setEditMode(false);
-    await storage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
+    await saveProfile(cleaned);
   }, [draft]);
 
   const pickPhoto = useCallback(async () => {
@@ -344,10 +312,10 @@ export default function ReserveIdScreen() {
 
   const currentPhoto = editMode ? draft.photoBase64 : profile.photoBase64;
 
-  // QR canvas-розмір (980px на 1290px-канвасі)
+  // QR canvas-розмір
   const qrSize = useMemo(() => s(980), [s]);
 
-  // Card geometry (FIXED for both sides)
+  // Card geometry
   const CARD_W = s(1146);
   const CARD_H = s(1542);
   const CARD_RADIUS = s(48);
@@ -358,7 +326,6 @@ export default function ReserveIdScreen() {
 
       <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
         <View style={[styles.screen, { width: W }]}>
-          {/* ===== Pill "Сповіщення" ===== */}
           {activeTab === "reserve" && showNotifications && (
             <NotificationsScreen
               s={s}
@@ -388,10 +355,7 @@ export default function ReserveIdScreen() {
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "center",
-                shadowColor: "#000",
-                shadowOpacity: 0.1,
-                shadowOffset: { width: 0, height: 2 },
-                shadowRadius: 10,
+                boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
                 elevation: 2,
               }}
             >
@@ -414,7 +378,6 @@ export default function ReserveIdScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* ===== Картка — ФІКСОВАНА геометрія 1146×1542, radius 48 ===== */}
           <View
             style={{
               paddingTop: s(330),
@@ -469,7 +432,6 @@ export default function ReserveIdScreen() {
             </Pressable>
           </View>
 
-          {/* Заповнюючий простір */}
           <View style={{ flex: 1 }} />
           </>
           )}
@@ -527,11 +489,11 @@ export default function ReserveIdScreen() {
                 scale={scale}
                 onSupport={() => setMenuSubScreen("support")}
                 onActiveSessions={() => setMenuSubScreen("sessions")}
+                onSettings={() => router.push("/settings")}
               />
             )
           )}
 
-          {/* ===== Нижній таб-бар ===== */}
           <View
             style={{
               backgroundColor: TAB_BG,
@@ -548,14 +510,7 @@ export default function ReserveIdScreen() {
               label="Резерв ID"
               s={s}
               active={activeTab === "reserve"}
-              onPress={() => {
-                if (activeTab === "reserve") {
-                  cycleVariant();
-                } else {
-                  setActiveTab("reserve");
-                }
-              }}
-              onLongPress={cycleVariant}
+              onPress={() => setActiveTab("reserve")}
             />
             <TabItem
               testID="tab-services"
@@ -588,7 +543,6 @@ export default function ReserveIdScreen() {
         </View>
       </SafeAreaView>
 
-      {/* Bottom Sheet — дії з документом (відкривається з FAB у Резерв ID) */}
       <DocumentActionsSheet
         visible={docSheetOpen}
         s={s}
@@ -596,20 +550,11 @@ export default function ReserveIdScreen() {
         onClose={() => setDocSheetOpen(false)}
         onView={() => setDocDetailOpen(true)}
         onDownload={() => {
-          // Генеруємо та ділимося PDF-документом з даними поточного профілю
-          generateAndShareMilitaryPdf({
-            surname: profile.surname,
-            name: profile.name,
-            patronymic: profile.patronymic,
-            birthDate: profile.birthDate,
-            deferralUntil: profile.deferralUntil,
-            photoBase64: profile.photoBase64,
-          });
+          generateAndShareMilitaryPdf(profile);
         }}
         onRefresh={() => setUpdateModalVisible(true)}
       />
 
-      {/* Детальний модал документа */}
       <DocumentDetailSheet
         visible={docDetailOpen}
         s={s}
@@ -620,7 +565,6 @@ export default function ReserveIdScreen() {
         tickerText={profile.customTicker || tickerStamp}
       />
 
-      {/* Модал підтвердження оновлення документа */}
       <Modal
         visible={updateModalVisible}
         transparent
@@ -649,7 +593,6 @@ export default function ReserveIdScreen() {
               alignItems: "center",
             }}
           >
-            {/* Іконка info — сіра обводка + чорна "i" без круга (окремий шар) */}
             <View
               style={{
                 width: s(160),
@@ -682,7 +625,6 @@ export default function ReserveIdScreen() {
               Поки генеруватиметься нова версія документу, деякі послуги можуть бути недоступні
             </Text>
 
-            {/* Кнопка Оновити */}
             <TouchableOpacity
               testID="update-confirm-btn"
               activeOpacity={0.85}
@@ -709,7 +651,6 @@ export default function ReserveIdScreen() {
               </Text>
             </TouchableOpacity>
 
-            {/* Кнопка Скасувати */}
             <TouchableOpacity
               testID="update-cancel-btn"
               activeOpacity={0.7}
@@ -745,9 +686,9 @@ type FrontProps = {
   s: (v: number) => number;
   scale: number;
   editMode: boolean;
-  draft: Profile;
-  setDraft: React.Dispatch<React.SetStateAction<Profile>>;
-  profile: Profile;
+  draft: UserProfile;
+  setDraft: React.Dispatch<React.SetStateAction<UserProfile>>;
+  profile: UserProfile;
   photo: string | null;
   onTridentPress: () => void;
   onPhotoPress: () => void;
@@ -773,7 +714,6 @@ function FrontSide(props: FrontProps) {
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Header */}
       <View
         style={{
           flexDirection: "row",
@@ -801,10 +741,7 @@ function FrontSide(props: FrontProps) {
           disabled={editMode}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           style={{
-            shadowColor: editMode ? ACCENT : "transparent",
-            shadowOpacity: editMode ? 0.9 : 0,
-            shadowRadius: editMode ? s(10) : 0,
-            shadowOffset: { width: 0, height: 0 },
+            boxShadow: editMode ? `0 0 ${s(10)}px rgba(255,165,0,0.9)` : "none",
           }}
         >
           <Image
@@ -815,7 +752,6 @@ function FrontSide(props: FrontProps) {
         </TouchableOpacity>
       </View>
 
-      {/* Body: photo + info  АБО  full-width info (варіант без фото) */}
       {view.noPhoto ? (
         <View style={{ paddingHorizontal: s(60), paddingTop: s(50) }}>
           <Text style={labelStyleBig(s)}>Дата народження:</Text>
@@ -939,7 +875,6 @@ function FrontSide(props: FrontProps) {
       </View>
       )}
 
-      {/* Ticker editor (edit mode) */}
       {editMode && (
         <View style={{ paddingHorizontal: s(60), paddingTop: s(30) }}>
           <Text style={{ fontSize: s(30), color: TEXT_MUTED, marginBottom: s(4) }}>
@@ -956,7 +891,6 @@ function FrontSide(props: FrontProps) {
         </View>
       )}
 
-      {/* Ticker strip - ABSOLUTE position */}
       <Pressable
         onPress={onTickerPress}
         style={{
@@ -1004,7 +938,6 @@ function FrontSide(props: FrontProps) {
         </Animated.View>
       </Pressable>
 
-      {/* Bottom: ПІБ + FAB / Save - ABSOLUTE */}
       <View
         style={{
           position: "absolute",
@@ -1099,7 +1032,7 @@ function FrontSide(props: FrontProps) {
 }
 
 // ============================================================
-//                       ЗВОРОТ — QR (центровано в карті)
+//                       ЗВОРОТ — QR
 // ============================================================
 type BackProps = {
   s: (v: number) => number;
@@ -1144,7 +1077,7 @@ function BackSide({ s, qrValue, qrSize, qrValidLabel }: BackProps) {
   );
 }
 
-// ---- Стилі тексту ----
+// ---- Стилі ----
 function labelStyle(s: (v: number) => number) {
   return {
     fontFamily: sfPro,
@@ -1153,7 +1086,6 @@ function labelStyle(s: (v: number) => number) {
     letterSpacing: s(38) * 0.02,
   };
 }
-// Великі стилі для варіанту без фото (як на скріншоті)
 function labelStyleBig(s: (v: number) => number) {
   return {
     fontFamily: sfPro,

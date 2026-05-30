@@ -3,79 +3,7 @@ import * as Sharing from "expo-sharing";
 import QRCode from "qrcode";
 import { Platform, Alert } from "react-native";
 
-/**
- * Профіль користувача, який відображається в додатку Резерв ID.
- */
-export type PdfProfile = {
-  surname: string;
-  name: string;
-  patronymic: string;
-  birthDate: string;
-  deferralUntil: string;
-  photoBase64: string | null;
-};
-
-/**
- * Додаткові поля документа.
- * У майбутньому ці дані надходитимуть з адмін-панелі / бекенду.
- * Зараз — значення-замовчування, що відповідають референсному PDF.
- */
-export type MilitaryDocData = {
-  // Особиста інформація
-  validUntil: string; // Дійсний до*
-  rnokpp: string; // РНОКПП
-  status: string; // напр. "Військовозобов'язаний"
-
-  // Військова інформація
-  category: string; // Категорія обліку
-  exclusionReason?: string; // Підстава зняття/виключення
-  tck: string; // ТЦК та СП
-  rank: string; // Звання
-  registryNumber: string; // Номер в реєстрі Оберіг
-  vos: string; // ВОС (BOC)
-  note: string; // напр. "Потребує проходження базової загальновійськової підготовки,Солдат резерву"
-  deferralType: string; // Тип відстрочки
-  deferralUntilEnd?: string; // Відстрочка до завершення мобілізації
-  policeReason?: string;
-  policeDate?: string;
-  vlkDecision?: string;
-  vlkDate?: string;
-  disabilityGroup?: string;
-  disabilityValidUntil?: string;
-  disabilityReason?: string;
-
-  // Адреса та контакти
-  address: string;
-  email: string;
-  phone: string;
-  dataUpdateDate: string; // Дата уточнення даних
-};
-
-export const DEFAULT_MILITARY_DATA: MilitaryDocData = {
-  validUntil: "30.05.2027",
-  rnokpp: "3411511010",
-  status: "Військовозобов'язаний",
-  category: "Військовозобов'язаний",
-  exclusionReason: "",
-  tck: "Білоцерківський районний територіальний центр комплектування та соціальної підтримки",
-  rank: "Солдат",
-  registryNumber: "250220231362300200481",
-  vos: "999097",
-  note: "Потребує проходження базової загальновійськової підготовки, Солдат резерву",
-  deferralType: "п.4 ч.1 ст.23",
-  deferralUntilEnd: "",
-  policeReason: "",
-  policeDate: "",
-  vlkDecision: "",
-  vlkDate: "",
-  disabilityGroup: "",
-  disabilityValidUntil: "",
-  disabilityReason: "",
-  address: "Україна, Київська область, м Біла Церква, Фастівська, б. 2",
-  email: "shillclub.dao@gmail.com",
-  phone: "380952067447",
-  dataUpdateDate: "21.05.2026",
-};
+import type { UserProfile } from "@/src/utils/profile";
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
@@ -84,9 +12,9 @@ function formatNow(): string {
   return `${pad2(n.getDate())}.${pad2(n.getMonth() + 1)}.${n.getFullYear()}, ${pad2(n.getHours())}:${pad2(n.getMinutes())}`;
 }
 
-function escapeHtml(text: string): string {
+function escapeHtml(text: string | null | undefined): string {
   if (!text) return "";
-  return text
+  return String(text)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -109,14 +37,13 @@ async function generateQrDataUrl(payload: string): Promise<string> {
 }
 
 /**
- * Будує повний HTML-документ "Військово-обліковий документ".
+ * Будує повний HTML-документ "Військово-обліковий документ" зі строгим 2-колонковим layout.
+ * Дані повністю динамічні з UserProfile (AsyncStorage).
  */
-function buildHtml(
-  profile: PdfProfile,
-  data: MilitaryDocData,
-  qrDataUrl: string,
-): string {
-  const fullName = `${profile.surname} ${profile.name} ${profile.patronymic}`.trim();
+function buildHtml(profile: UserProfile, qrDataUrl: string): string {
+  const fullName = `${profile.surname} ${profile.name} ${profile.patronymic}`
+    .replace(/\s+/g, " ")
+    .trim();
   const now = formatNow();
 
   const photoBlock = profile.photoBase64
@@ -127,7 +54,8 @@ function buildHtml(
     ? `<img class="qr-img" src="${qrDataUrl}" alt="qr"/>`
     : `<div class="qr-img placeholder"></div>`;
 
-  const row = (label: string, value: string) => `
+  // 2-колонковий рядок: label зліва, value справа
+  const row = (label: string, value: string | null | undefined) => `
     <div class="row">
       <div class="row-label">${escapeHtml(label)}</div>
       <div class="row-value">${escapeHtml(value || "—")}</div>
@@ -152,160 +80,133 @@ function buildHtml(
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .page {
-    padding: 24px 28px 28px;
-  }
+  .page { padding: 22px 26px 26px; }
 
   /* HEADER */
   .header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    padding-bottom: 16px;
+    align-items: center;
+    padding-bottom: 12px;
     border-bottom: 2px solid #1a1a1a;
   }
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
+  .brand { display: flex; align-items: center; gap: 10px; }
   .brand-logo {
-    width: 36px; height: 36px;
-    background: #1a1a1a;
-    color: #fff;
-    font-weight: 800;
-    font-size: 22px;
+    width: 38px; height: 38px;
+    background: #1a1a1a; color: #fff;
+    font-weight: 800; font-size: 22px;
     display: flex; align-items: center; justify-content: center;
-    border-radius: 8px;
-    letter-spacing: -1px;
+    border-radius: 8px; letter-spacing: -1px;
   }
-  .brand-text {
-    font-size: 18px;
-    font-weight: 700;
-    color: #1a1a1a;
-  }
-  .header-center {
-    flex: 1;
-    text-align: center;
-    padding: 0 16px;
-  }
-  .doc-title {
-    font-size: 18px;
-    font-weight: 700;
-    margin: 2px 0;
-  }
-  .doc-meta {
-    font-size: 10px;
-    color: #4a4a4a;
-  }
+  .brand-text { font-size: 18px; font-weight: 700; }
+  .header-center { flex: 1; text-align: center; padding: 0 16px; }
+  .doc-title { font-size: 17px; font-weight: 700; margin: 0 0 2px; }
+  .doc-meta { font-size: 9.5px; color: #4a4a4a; }
   .ministry {
     text-align: right;
-    font-size: 10px;
-    color: #1a1a1a;
+    font-size: 9.5px;
     line-height: 1.3;
     font-weight: 600;
     max-width: 130px;
   }
 
-  /* SECTIONS */
-  .section-title {
-    margin-top: 18px;
-    margin-bottom: 10px;
-    font-size: 13px;
-    font-weight: 700;
-    color: #1a1a1a;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #b6b6b6;
-  }
-
-  /* TOP BLOCK: photo + main info + QR */
-  .top-block {
-    display: flex;
+  /* TOP IDENTITY BLOCK — 3 колонки: фото | ПІБ+статус | QR */
+  .identity {
+    display: grid;
+    grid-template-columns: 120px 1fr 130px;
     gap: 14px;
     align-items: flex-start;
+    margin-top: 14px;
   }
   .photo {
-    width: 110px;
-    height: 140px;
+    width: 120px; height: 150px;
     border: 1px solid #b6b6b6;
     border-radius: 6px;
     overflow: hidden;
-    flex-shrink: 0;
     background: #f3f3ee;
     display: flex; align-items: center; justify-content: center;
   }
   .photo img { width: 100%; height: 100%; object-fit: cover; }
   .photo.placeholder span { color: #888; font-size: 10px; }
-  .main-info {
-    flex: 1;
-  }
+
+  .identity-main { padding-top: 2px; }
   .status-badge {
     display: inline-block;
-    background: #FFF3D6;
-    color: #6B5421;
+    background: #FFF3D6; color: #6B5421;
     border: 1px solid #C9A451;
     border-radius: 4px;
-    padding: 2px 10px;
+    padding: 3px 10px;
     font-size: 10px;
     font-weight: 700;
     margin-bottom: 8px;
     letter-spacing: 0.4px;
   }
   .full-name {
-    font-size: 17px;
-    font-weight: 800;
-    color: #1a1a1a;
-    margin-bottom: 8px;
+    font-size: 17px; font-weight: 800;
+    margin-bottom: 10px;
     letter-spacing: 0.5px;
+    line-height: 1.15;
   }
-  .qr-box {
-    width: 130px;
-    flex-shrink: 0;
-    text-align: center;
-  }
+
+  .qr-box { text-align: center; }
   .qr-img {
-    width: 130px;
-    height: 130px;
+    width: 130px; height: 130px;
     border: 1px solid #b6b6b6;
     border-radius: 6px;
     padding: 4px;
     background: #fff;
   }
   .qr-img.placeholder { background: #eee; }
-  .qr-caption {
-    font-size: 9px;
-    color: #666;
-    margin-top: 4px;
+  .qr-caption { font-size: 9px; color: #666; margin-top: 4px; }
+
+  /* SECTION TITLES */
+  .section-title {
+    margin-top: 18px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #1a1a1a;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #b6b6b6;
   }
 
-  /* ROWS */
+  /* СУВОРИЙ 2-КОЛОНКОВИЙ GRID */
+  .grid-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 22px;
+  }
+  .col { display: flex; flex-direction: column; }
+
+  /* ROW */
   .row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 45% 55%;
     padding: 5px 0;
     border-bottom: 1px dashed #d8d8d8;
     align-items: flex-start;
+    gap: 6px;
   }
-  .row:last-child { border-bottom: none; }
   .row-label {
-    flex: 0 0 42%;
     color: #55544B;
-    font-size: 10.5px;
-    padding-right: 8px;
+    font-size: 10px;
   }
   .row-value {
-    flex: 1;
     color: #1a1a1a;
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 600;
     word-break: break-word;
   }
 
+  /* FULL WIDTH сегмент (адреса, ПІБ-блок) */
+  .full-row { grid-column: 1 / -1; }
+
   /* FOOTER */
   .footer {
-    margin-top: 22px;
+    margin-top: 18px;
     padding-top: 10px;
     border-top: 1px solid #b6b6b6;
-    font-size: 9px;
+    font-size: 8.5px;
     color: #4a4a4a;
     line-height: 1.5;
     text-align: justify;
@@ -329,17 +230,24 @@ function buildHtml(
     <div class="ministry">Міністерство<br/>оборони України</div>
   </div>
 
-  <!-- ОСОБИСТА ІНФОРМАЦІЯ -->
-  <div class="section-title">Особиста інформація</div>
-
-  <div class="top-block">
+  <!-- IDENTITY: photo | name+status | QR -->
+  <div class="identity">
     ${photoBlock}
-    <div class="main-info">
-      <div class="status-badge">${escapeHtml(data.status)}</div>
+    <div class="identity-main">
+      <div class="status-badge">${escapeHtml(profile.status)}</div>
       <div class="full-name">${escapeHtml(fullName)}</div>
-      ${row("Дата народження", profile.birthDate)}
-      ${row("Дійсний до*", data.validUntil)}
-      ${row("РНОКПП", data.rnokpp)}
+      <div class="row">
+        <div class="row-label">Дата народження</div>
+        <div class="row-value">${escapeHtml(profile.birthDate)}</div>
+      </div>
+      <div class="row">
+        <div class="row-label">Дійсний до*</div>
+        <div class="row-value">${escapeHtml(profile.validUntil)}</div>
+      </div>
+      <div class="row">
+        <div class="row-label">РНОКПП</div>
+        <div class="row-value">${escapeHtml(profile.rnokpp)}</div>
+      </div>
     </div>
     <div class="qr-box">
       ${qrBlock}
@@ -347,32 +255,35 @@ function buildHtml(
     </div>
   </div>
 
-  <!-- ВІЙСЬКОВА ІНФОРМАЦІЯ -->
+  <!-- ВІЙСЬКОВА ІНФОРМАЦІЯ — 2 колонки -->
   <div class="section-title">Військова інформація</div>
-  ${row("Категорія обліку", data.category)}
-  ${row("Підстава зняття/виключення", data.exclusionReason || "")}
-  ${row("ТЦК та СП", data.tck)}
-  ${row("Звання", data.rank)}
-  ${row("Номер в реєстрі Оберіг", data.registryNumber)}
-  ${row("ВОС", data.vos)}
-  ${row("", data.note)}
-  ${row("Тип відстрочки", data.deferralType)}
-  ${row("Відстрочка до", profile.deferralUntil || "")}
-  ${row("Відстрочка до завершення мобілізації", data.deferralUntilEnd || "")}
-  ${row("Причина звернення до Нацполіції", data.policeReason || "")}
-  ${row("Дата звернення", data.policeDate || "")}
-  ${row("Постанова ВЛК", data.vlkDecision || "")}
-  ${row("Дата ВЛК", data.vlkDate || "")}
-  ${row("Група інвалідності", data.disabilityGroup || "")}
-  ${row("Діє до", data.disabilityValidUntil || "")}
-  ${row("Причина інвалідності", data.disabilityReason || "")}
+  <div class="grid-2col">
+    <div class="col">
+      ${row("Категорія обліку", profile.category)}
+      ${row("Звання", profile.rank)}
+      ${row("ВОС", profile.vos)}
+      ${row("Тип відстрочки", profile.deferralType)}
+    </div>
+    <div class="col">
+      ${row("ТЦК та СП", profile.tck)}
+      ${row("Номер в реєстрі Оберіг", profile.registryNumber)}
+      ${row("Відстрочка до", profile.deferralUntil)}
+      ${row("Примітка", profile.note)}
+    </div>
+  </div>
 
-  <!-- АДРЕСА ТА КОНТАКТИ -->
+  <!-- АДРЕСА ТА КОНТАКТИ — 2 колонки -->
   <div class="section-title">Адреса та контакти</div>
-  ${row("Адреса проживання", data.address)}
-  ${row("Email", data.email)}
-  ${row("Телефон", data.phone)}
-  ${row("Дата уточнення даних", data.dataUpdateDate)}
+  <div class="grid-2col">
+    <div class="col">
+      ${row("Телефон", profile.phone)}
+      ${row("Email", profile.email)}
+    </div>
+    <div class="col">
+      ${row("Адреса проживання", profile.address)}
+      ${row("Дата уточнення даних", profile.dataUpdateDate)}
+    </div>
+  </div>
 
   <!-- FOOTER -->
   <div class="footer">
@@ -389,32 +300,24 @@ function buildHtml(
 
 /**
  * Згенерувати та поділитися PDF "Військово-обліковий документ".
- * — На native: створюється локальний файл через expo-print і відкривається Share Sheet.
- * — На web: відкривається діалог друку / завантаження PDF.
+ * Приймає повний UserProfile (з AsyncStorage). Жодних дефолтних мокованих даних.
  */
-export async function generateAndShareMilitaryPdf(
-  profile: PdfProfile,
-  data: MilitaryDocData = DEFAULT_MILITARY_DATA,
-): Promise<void> {
+export async function generateAndShareMilitaryPdf(profile: UserProfile): Promise<void> {
   try {
-    // 1) Готуємо QR як data-URL
     const qrPayload = JSON.stringify({
       s: profile.surname,
       n: profile.name,
       p: profile.patronymic,
       b: profile.birthDate,
-      r: data.rnokpp,
-      reg: data.registryNumber,
-      v: data.validUntil,
+      r: profile.rnokpp,
+      reg: profile.registryNumber,
+      v: profile.validUntil,
       t: Date.now(),
     });
     const qrDataUrl = await generateQrDataUrl(qrPayload);
-
-    // 2) HTML
-    const html = buildHtml(profile, data, qrDataUrl);
+    const html = buildHtml(profile, qrDataUrl);
 
     if (Platform.OS === "web") {
-      // На web — друк через невидимий iframe (дозволяє "Зберегти як PDF")
       const w = window.open("", "_blank");
       if (!w) {
         Alert.alert("Не вдалося відкрити вікно", "Дозвольте спливаючі вікна та спробуйте ще раз.");
@@ -423,7 +326,6 @@ export async function generateAndShareMilitaryPdf(
       w.document.open();
       w.document.write(html);
       w.document.close();
-      // невелика пауза, щоб контент відрендерився
       setTimeout(() => {
         try {
           w.focus();
@@ -435,18 +337,13 @@ export async function generateAndShareMilitaryPdf(
       return;
     }
 
-    // 3) Native: створюємо PDF-файл
-    const { uri } = await Print.printToFileAsync({
-      html,
-      base64: false,
-    });
+    const { uri } = await Print.printToFileAsync({ html, base64: false });
 
     const safeName =
       `${profile.surname}_${profile.name}`.replace(/[^A-Za-zА-Яа-яЁёЇїІіЄєҐґ0-9_-]/g, "") ||
       "rezerv_plus";
     const fileName = `eVOD_${safeName}.pdf`;
 
-    // 4) Шарінг (зберегти / надіслати)
     const canShare = await Sharing.isAvailableAsync();
     if (canShare) {
       await Sharing.shareAsync(uri, {
@@ -455,16 +352,10 @@ export async function generateAndShareMilitaryPdf(
         UTI: "com.adobe.pdf",
       });
     } else {
-      Alert.alert(
-        "PDF створено",
-        `Файл збережено: ${fileName}\nШлях: ${uri}`,
-      );
+      Alert.alert("PDF створено", `Файл збережено: ${fileName}\nШлях: ${uri}`);
     }
   } catch (e) {
     console.error("PDF generation failed", e);
-    Alert.alert(
-      "Помилка створення PDF",
-      "Не вдалося згенерувати документ. Спробуйте ще раз.",
-    );
+    Alert.alert("Помилка створення PDF", "Не вдалося згенерувати документ. Спробуйте ще раз.");
   }
 }
