@@ -38,6 +38,7 @@ import ActiveSessionsScreen from "@/src/components/ActiveSessionsScreen";
 import DocumentActionsSheet from "@/src/components/DocumentActionsSheet";
 import DocumentDetailSheet from "@/src/components/DocumentDetailSheet";
 import NotificationsScreen from "@/src/components/NotificationsScreen";
+import { generateAndShareMilitaryPdf } from "@/src/utils/pdfGenerator";
 
 // ---- Артефакти ----
 const TRIDENT_SRC = require("../assets/images/trident.png");
@@ -594,6 +595,17 @@ export default function ReserveIdScreen() {
         scale={scale}
         onClose={() => setDocSheetOpen(false)}
         onView={() => setDocDetailOpen(true)}
+        onDownload={() => {
+          // Генеруємо та ділимося PDF-документом з даними поточного профілю
+          generateAndShareMilitaryPdf({
+            surname: profile.surname,
+            name: profile.name,
+            patronymic: profile.patronymic,
+            birthDate: profile.birthDate,
+            deferralUntil: profile.deferralUntil,
+            photoBase64: profile.photoBase64,
+          });
+        }}
         onRefresh={() => setUpdateModalVisible(true)}
       />
 
